@@ -14,6 +14,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { hashPassword } from "@/lib/crypto";
 import { createPhotoFromUpload } from "@/lib/photos";
+import { storage } from "@/lib/storage";
 import { DEFAULT_QUOTE_OPTIONS, DEFAULT_SETTINGS, saveSetting } from "@/lib/settings";
 import { renderDemo, type Scene } from "./demo-images";
 
@@ -171,8 +172,15 @@ async function main() {
   for (const [i, p] of DEMO_PROJECTS.entries()) {
     const exists = await db.query.projects.findFirst({ where: eq(schema.projects.slug, p.slug) });
     if (exists) {
-      console.log(`  • ${p.title} (já existe)`);
-      continue;
+      // se os arquivos sumiram (ex.: disco novo na hospedagem), recria o projeto demonstrativo
+      const first = await db.query.photos.findFirst({ where: eq(schema.photos.projectId, exists.id) });
+      const ok = first ? !!(await storage().get(first.originalKey)) : false;
+      if (ok || !exists.isDemo) {
+        console.log(`  • ${p.title} (já existe)`);
+        continue;
+      }
+      console.log(`  ↻ ${p.title}: arquivos ausentes, recriando`);
+      await db.delete(schema.projects).where(eq(schema.projects.id, exists.id));
     }
     const [project] = await db
       .insert(schema.projects)
@@ -217,13 +225,17 @@ async function main() {
 
   // Imagem do hero e do "sobre" apontam para fotos de demonstração
   const site = (await db.query.settings.findFirst({ where: eq(schema.settings.key, "site") }))!.value as typeof DEFAULT_SETTINGS;
-  if (!site.heroPhotoId || !site.aboutPhotoId) {
+  // (reaponta também quando a foto configurada não existe mais)
+  const photoExists = async (id: string | null) => !!id && !!(await db.query.photos.findFirst({ where: eq(schema.photos.id, id), columns: { id: true } }));
+  const heroOk = await photoExists(site.heroPhotoId);
+  const aboutOk = await photoExists(site.aboutPhotoId);
+  if (!heroOk || !aboutOk) {
     const hero = await db.query.projects.findFirst({ where: eq(schema.projects.slug, "linha-de-chegada") });
     const about = await db.query.projects.findFirst({ where: eq(schema.projects.slug, "retratos-em-sombra") });
     await saveSetting("site", {
       ...site,
-      heroPhotoId: site.heroPhotoId ?? hero?.coverPhotoId ?? null,
-      aboutPhotoId: site.aboutPhotoId ?? about?.coverPhotoId ?? null,
+      heroPhotoId: heroOk ? site.heroPhotoId : (hero?.coverPhotoId ?? null),
+      aboutPhotoId: aboutOk ? site.aboutPhotoId : (about?.coverPhotoId ?? null),
     });
   }
 
