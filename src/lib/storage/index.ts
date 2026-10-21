@@ -19,6 +19,8 @@ export interface StorageDriver {
   get(key: string): Promise<{ body: Buffer; contentType: string } | null>;
   delete(key: string): Promise<void>;
   deletePrefix(prefix: string): Promise<void>;
+  /** Lista os arquivos no nível raiz (sem subpastas). */
+  listRoot(): Promise<string[]>;
   signedUrl(key: string, opts: UrlOptions): Promise<string>;
 }
 
@@ -29,7 +31,7 @@ export type UrlOptions = {
   download?: string;
 };
 
-const KEY_RE = /^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/;
+const KEY_RE = /^[a-zA-Z0-9][a-zA-Z0-9/_. ()-]*$/;
 export function assertKey(key: string) {
   if (!KEY_RE.test(key) || key.includes("..") || key.includes("//")) throw new Error("Chave de armazenamento inválida");
 }
@@ -89,6 +91,14 @@ class LocalDriver implements StorageDriver {
   }
   async deletePrefix(prefix: string) {
     await fs.rm(this.file(prefix.replace(/\/$/, "")), { recursive: true, force: true });
+  }
+  async listRoot() {
+    try {
+      const entries = await fs.readdir(this.root, { withFileTypes: true });
+      return entries.filter((e) => e.isFile()).map((e) => e.name);
+    } catch {
+      return [];
+    }
   }
   async signedUrl(key: string, opts: UrlOptions) {
     assertKey(key);
@@ -153,6 +163,18 @@ class S3Driver implements StorageDriver {
       if (objs.length) await client.send(new DeleteObjectsCommand({ Bucket: this.bucket, Delete: { Objects: objs } }));
       token = list.IsTruncated ? list.NextContinuationToken : undefined;
     } while (token);
+  }
+  async listRoot() {
+    const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
+    const client = await this.clientPromise;
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const list = await client.send(new ListObjectsV2Command({ Bucket: this.bucket, Delimiter: "/", ContinuationToken: token }));
+      for (const o of list.Contents ?? []) if (o.Key && !o.Key.includes("/")) keys.push(o.Key);
+      token = list.IsTruncated ? list.NextContinuationToken : undefined;
+    } while (token);
+    return keys;
   }
   async signedUrl(key: string, opts: UrlOptions) {
     assertKey(key);

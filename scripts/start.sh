@@ -5,6 +5,9 @@ set -e
 echo "→ Aplicando migrações"
 npm run db:migrate
 echo "→ Dados iniciais (em segundo plano)"
-(npm run db:seed || echo "⚠ seed falhou — veja o log acima") &
+(
+  npm run db:seed || echo "⚠ seed falhou — veja o log acima"
+  if [ "${IMPORT_BUCKET_ROOT:-false}" = "true" ]; then npm run import:bucket || echo "⚠ importação falhou"; fi
+) &
 echo "→ Iniciando o site na porta ${PORT:-3000}"
 exec npx next start -p "${PORT:-3000}"
