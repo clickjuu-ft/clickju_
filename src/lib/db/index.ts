@@ -9,7 +9,8 @@ type DB = ReturnType<typeof drizzle<typeof schema>>;
 // Reaproveita a conexão entre recarregamentos em desenvolvimento.
 const globalForDb = globalThis as unknown as { __pg?: ReturnType<typeof postgres>; __db?: DB };
 
-function create(): DB {
+function getDb(): DB {
+  if (globalForDb.__db) return globalForDb.__db;
   const client =
     globalForDb.__pg ??
     postgres(env.databaseUrl, {
@@ -19,8 +20,18 @@ function create(): DB {
       onnotice: () => {},
     });
   globalForDb.__pg = client;
-  return drizzle(client, { schema });
+  globalForDb.__db = drizzle(client, { schema });
+  return globalForDb.__db;
 }
 
-export const db: DB = globalForDb.__db ?? (globalForDb.__db = create());
+/**
+ * Conexão criada sob demanda (na primeira consulta), para que o build não exija DATABASE_URL.
+ */
+export const db: DB = new Proxy({} as DB, {
+  get(_target, prop) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
 export { schema };

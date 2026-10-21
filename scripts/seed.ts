@@ -17,7 +17,8 @@ import { createPhotoFromUpload } from "@/lib/photos";
 import { DEFAULT_QUOTE_OPTIONS, DEFAULT_SETTINGS, saveSetting } from "@/lib/settings";
 import { renderDemo, type Scene } from "./demo-images";
 
-const withDemo = !process.argv.includes("--no-demo");
+// SEED_DEMO=false (ou --no-demo) pula os projetos de demonstração
+const withDemo = !process.argv.includes("--no-demo") && process.env.SEED_DEMO !== "false";
 
 const CATEGORIES = [
   ["fotografia-esportiva", "Fotografia esportiva", "Atletas, treinos e competições em alta velocidade."],
