@@ -1,0 +1,9 @@
+node_modules
+.next
+storage
+.test-storage
+.e2e-storage
+backups
+.env
+.git
+test-results

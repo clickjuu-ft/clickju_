@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.test-storage
+.e2e-storage
+tests/e2e/.fixtures.json
+test-results
+playwright-report
+backups
+
+# arquivos enviados (fotos originais, variantes, anexos)
+/storage

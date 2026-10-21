@@ -1,26 +1,191 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ------------------------------------------------------------------ */
+/* Tokens da identidade visual — preto, roxo e branco                  */
+/* ------------------------------------------------------------------ */
+@theme {
+  /* Tema claro (padrão): branco predominante, preto para texto, roxo de destaque.
+     Nomes semânticos: "ink" = fundo, "paper" = texto/primeiro plano. */
+  --color-ink: #ffffff;
+  --color-ink-2: #f4f1fa;
+  --color-ink-3: #ebe6f5;
+  --color-violet: #8b5cf6;
+  --color-lilac: #6d3fe0; /* roxo mais profundo para texto pequeno sobre branco (contraste AA) */
+  --color-paper: #09090d;
+  --color-paper-2: #15131c;
+  --color-mist: #6b6779; /* cinza auxiliar legível sobre branco; #A5A1B2 fica para linhas/decoração */
+  --color-line: rgb(9 9 13 / 0.1);
+  --color-line-strong: rgb(9 9 13 / 0.22);
+  --color-danger: #dc2626;
+  --color-ok: #16a34a;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in: fade-in 0.6s var(--ease-out-expo) both;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+/* Ilhas escuras (hero sobre foto, rodapé, visualizador): redefinem os mesmos tokens. */
+  .theme-dark {
+    --color-ink: #09090d;
+    --color-ink-2: #15131c;
+    --color-ink-3: #1e1b28;
+    --color-lilac: #a78bfa;
+    --color-paper: #ffffff;
+    --color-paper-2: #f4f1fa;
+    --color-mist: #a5a1b2;
+    --color-line: rgb(244 241 250 / 0.12);
+    --color-line-strong: rgb(244 241 250 / 0.26);
+    --color-danger: #f87171;
+    --color-ok: #86efac;
+    color: var(--color-paper-2);
+  }
+
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-ink);
+    color: var(--color-paper-2);
+    font-family: var(--font-sans);
+    font-stretch: 100%;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: var(--color-violet);
+    color: var(--color-paper);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-lilac);
+    outline-offset: 3px;
+  }
+  /* campos de formulário com aparência consistente */
+  input, textarea, select {
+    font: inherit;
+  }
+  .theme-dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.6);
+  }
+}
+
+@layer components {
+  /* Títulos de display: Archivo condensada, pesada, caixa alta */
+  .display {
+    font-family: var(--font-sans);
+    font-stretch: 68%;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.88;
+  }
+  /* Itálico editorial para acentos */
+  .serif-accent {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .eyebrow {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-lilac);
+  }
+  .hairline {
+    border-color: var(--color-line);
+  }
+  .field {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--color-line-strong);
+    padding: 0.75rem 0;
+    color: var(--color-paper);
+    transition: border-color 0.2s;
+    border-radius: 0;
+  }
+  .field::placeholder {
+    color: rgb(107 103 121 / 0.75);
+  }
+  .field:hover {
+    border-color: var(--color-paper);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--color-lilac);
+    box-shadow: 0 1px 0 0 var(--color-lilac);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--color-danger);
+  }
+  select.field {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 12px) 55%, calc(100% - 7px) 55%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 1.75rem;
+  }
+  select.field option {
+    background: var(--color-ink-2);
+  }
+  /* Campos do painel (mais compactos, com caixa) */
+  .input {
+    width: 100%;
+    background: var(--color-ink);
+    border: 1px solid var(--color-line-strong);
+    padding: 0.55rem 0.75rem;
+    color: var(--color-paper);
+    font-size: 0.875rem;
+    border-radius: 2px;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-lilac);
+  }
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-mist);
+    margin-bottom: 0.35rem;
+  }
+  .prose-site p { margin: 0 0 1.1em; line-height: 1.75; color: color-mix(in srgb, var(--color-paper-2) 85%, transparent); }
+  .prose-site h2 { font-size: 1.6rem; margin: 1.6em 0 0.6em; font-weight: 700; font-stretch: 80%; text-transform: uppercase; }
+  .prose-site h3 { font-size: 1.2rem; margin: 1.4em 0 0.5em; font-weight: 700; }
+  .prose-site ul { list-style: none; margin: 0 0 1.2em; padding: 0; }
+  .prose-site li { position: relative; padding-left: 1.2em; margin: 0.35em 0; color: color-mix(in srgb, var(--color-paper-2) 85%, transparent); }
+  .prose-site li::before { content: ""; position: absolute; left: 0; top: 0.72em; width: 0.5em; height: 1px; background: var(--color-lilac); }
+  .prose-site a { color: var(--color-lilac); text-decoration: underline; text-underline-offset: 3px; }
+}
+
+@layer utilities {
+  .stretch-condensed { font-stretch: 68%; }
+  .stretch-semi { font-stretch: 85%; }
+  .text-balance { text-wrap: balance; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
