@@ -21,7 +21,9 @@ export const env = {
     return required("DATABASE_URL");
   },
   get appUrl() {
-    return (opt("APP_URL") ?? "http://localhost:3000").replace(/\/$/, "");
+    // Render e Railway informam o endereço público automaticamente
+    const railway = opt("RAILWAY_PUBLIC_DOMAIN");
+    return (opt("APP_URL") ?? opt("RENDER_EXTERNAL_URL") ?? (railway ? `https://${railway}` : undefined) ?? "http://localhost:3000").replace(/\/$/, "");
   },
   /** Segredo para assinar URLs temporárias, cookies de galeria e tokens anti-spam. */
   get appSecret() {
