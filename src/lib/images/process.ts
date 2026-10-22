@@ -9,7 +9,8 @@ type SharpImage = ReturnType<typeof sharp>;
 type SharpMetadata = Awaited<ReturnType<SharpImage["metadata"]>>;
 
 sharp.cache(false);
-sharp.concurrency(2);
+// Poucos threads e sem cache: cabe em instâncias pequenas (ex.: 512 MB). SHARP_CONCURRENCY ajusta.
+sharp.concurrency(Number(process.env.SHARP_CONCURRENCY ?? 1));
 
 export const VARIANT_WIDTHS = [480, 960, 1600, 2400] as const;
 const MAX_PIXELS = 120_000_000; // ~120 MP
@@ -145,18 +146,23 @@ export function qualityScore(t: { sharpness: number; brightness: number; clipped
 
 export async function analyze(buf: Buffer): Promise<ImageAnalysis> {
   const meta = await inspect(buf);
-  const base = sharp(buf, { limitInputPixels: MAX_PIXELS }).rotate(); // aplica orientação EXIF
   const rotatedSwap = (meta.orientation ?? 1) >= 5;
   const width = rotatedSwap ? meta.height! : meta.width!;
   const height = rotatedSwap ? meta.width! : meta.height!;
 
-  const [blur, stats, hash, colors, tech] = await Promise.all([
-    base.clone().resize(24, 24, { fit: "inside" }).webp({ quality: 40 }).toBuffer(),
-    base.clone().resize(200, 200, { fit: "inside" }).stats(),
-    dhash(base),
-    colorVector(base),
-    technical(base),
-  ]);
+  // decodifica UMA vez, já reduzida (shrink-on-load), e faz as análises em sequência:
+  // evita várias cópias da foto inteira na memória ao mesmo tempo
+  const work = await sharp(buf, { limitInputPixels: MAX_PIXELS })
+    .rotate()
+    .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
+    .toBuffer({ resolveWithObject: true });
+  const base = sharp(work.data);
+
+  const blur = await base.clone().resize(24, 24, { fit: "inside" }).webp({ quality: 40 }).toBuffer();
+  const stats = await base.clone().resize(200, 200, { fit: "inside" }).stats();
+  const hash = await dhash(base);
+  const colors = await colorVector(base);
+  const tech = await technical(base);
   const d = stats.dominant;
   const hex = `#${[d.r, d.g, d.b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 
@@ -217,28 +223,34 @@ export async function generateVariants(
   const rev = randomToken(4).replace(/[^a-zA-Z0-9]/g, "x");
   const widths: number[] = VARIANT_WIDTHS.filter((w) => w < srcW);
   widths.push(Math.min(srcW, VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1]));
-  const unique = [...new Set(widths)].sort((a, b) => a - b);
+  const unique = [...new Set(widths)].sort((a, b) => b - a); // maior primeiro
+
+  // Decodifica o original uma única vez, no maior tamanho necessário (pixels crus);
+  // as demais larguras derivam dessa cópia. Formatos codificados em sequência.
+  const master = await sharp(original, { limitInputPixels: MAX_PIXELS })
+    .rotate()
+    .resize({ width: unique[0], withoutEnlargement: true })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const fromMaster = () => sharp(master.data, { raw: { width: master.info.width, height: master.info.height, channels: master.info.channels } });
+
   const out: PhotoVariant[] = [];
   for (const w of unique) {
-    let pipeline = sharp(original, { limitInputPixels: MAX_PIXELS }).rotate().resize({ width: w, withoutEnlargement: true });
-    const resized = await pipeline.toBuffer({ resolveWithObject: true });
-    pipeline = sharp(resized.data);
+    const resized = await fromMaster().resize({ width: w, withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
+    let pipeline = sharp(resized.data, { raw: { width: resized.info.width, height: resized.info.height, channels: resized.info.channels } });
     if (watermark) {
       pipeline = pipeline.composite([{ input: watermarkSvg(resized.info.width, resized.info.height, watermark), top: 0, left: 0 }]);
     }
-    const flat = await pipeline.toBuffer();
-    const [avif, webp] = await Promise.all([
-      sharp(flat).avif({ quality: 52, effort: 2 }).toBuffer(),
-      sharp(flat).webp({ quality: 80 }).toBuffer(),
-    ]);
+    const flat = await pipeline.png({ compressionLevel: 0 }).toBuffer();
     const prefix = `v/${photoId}/${rev}/${w}`;
-    await Promise.all([
-      storage().put(`${prefix}.avif`, avif, "image/avif"),
-      storage().put(`${prefix}.webp`, webp, "image/webp"),
-    ]);
+    const avif = await sharp(flat).avif({ quality: 52, effort: 2 }).toBuffer();
+    await storage().put(`${prefix}.avif`, avif, "image/avif");
+    const webp = await sharp(flat).webp({ quality: 80 }).toBuffer();
+    await storage().put(`${prefix}.webp`, webp, "image/webp");
     out.push({ w: resized.info.width, h: resized.info.height, avif: `${prefix}.avif`, webp: `${prefix}.webp` });
   }
-  return out;
+  return out.sort((a, b) => a.w - b.w);
 }
 
 export function hamming(a: string, b: string): number {

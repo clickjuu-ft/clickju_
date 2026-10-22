@@ -13,7 +13,7 @@ RUN npx next build && npm prune --omit=dev && npm install --no-save tsx dotenv
 
 FROM node:22-bookworm-slim
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 npm_config_cache=/tmp/.npm
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 npm_config_cache=/tmp/.npm MALLOC_ARENA_MAX=2
 RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/* \
   && useradd -r -u 1001 app
 COPY --from=build /app ./

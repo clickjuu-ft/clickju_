@@ -4,6 +4,8 @@ import { Eye, EyeOff, Lock, Link2, Star } from "lucide-react";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { createProject } from "@/server/admin/portfolio-actions";
+import { importFromBucket } from "@/server/admin/import-actions";
+import { pendingBucketImports } from "@/lib/import-bucket";
 import { ActionForm } from "@/components/forms/action-form";
 import { PageHeader, Panel } from "@/components/admin/ui";
 import { photoViewById } from "@/lib/portfolio";
@@ -24,9 +26,21 @@ export default async function ProjectsAdmin() {
     .leftJoin(schema.categories, eq(schema.categories.id, schema.projects.categoryId))
     .orderBy(asc(schema.projects.sort), asc(schema.projects.createdAt));
   const covers = await Promise.all(rows.map((r) => photoViewById(r.p.coverPhotoId, "private")));
+  const pending = await pendingBucketImports().catch(() => []);
   return (
     <>
       <PageHeader title="Projetos e galerias" description="Cada projeto é uma galeria independente: pública no portfólio, protegida por senha, acessível por link ou privada para clientes." />
+      {pending.length > 0 && (
+        <Panel title={`${pending.length} foto(s) enviadas direto ao armazenamento`} className="mb-6 border-violet">
+          <p className="mb-3 text-sm text-mist">
+            Encontramos fotos soltas no bucket (enviadas fora do site). Importe para processá-las e organizá-las — elas vão para o projeto
+            “Fotos importadas”, em rascunho. São processadas 3 por clique.
+          </p>
+          <ActionForm action={importFromBucket} submitLabel="Importar fotos" pendingLabel="Importando… (pode levar 1–2 min)" variant="violet" className="space-y-0 [&>button]:w-auto">
+            {null}
+          </ActionForm>
+        </Panel>
+      )}
       <Panel title="Novo projeto" className="mb-6">
         <ActionForm action={createProject} submitLabel="Criar projeto" className="grid gap-3 space-y-0 md:grid-cols-[1fr_200px] md:items-end">
           <label className="block">
